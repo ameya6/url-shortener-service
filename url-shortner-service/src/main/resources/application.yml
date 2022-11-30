@@ -4,3 +4,10 @@ server:
 spring:
   application:
     name: URL Shortner Service
+
+domain:
+  url: http://srt.y/
+
+hash-algorithm: SHA3-256
+
+duid-server: http://localhost:9009/duid/
