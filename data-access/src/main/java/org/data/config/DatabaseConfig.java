@@ -82,6 +82,13 @@ public class DatabaseConfig {
         return entityManagerFactory().unwrap(SessionFactory.class);
     }
 
+    /**
+     *
+     * No qualifying bean of type 'org.springframework.transaction.TransactionManager' available: expected single matching bean but found 2: transactionManager,connectionFactoryTransactionManager
+     * https://stackoverflow.com/questions/31604361/expected-single-matching-bean-but-found-2-transactionmanager1-transactionmanage
+     *
+    * */
+
     @SneakyThrows
     @Bean(name = "session")
     public Session session() {

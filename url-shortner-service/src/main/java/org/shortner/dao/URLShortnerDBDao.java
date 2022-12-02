@@ -16,7 +16,7 @@ public class URLShortnerDBDao {
     @Autowired
     private Session session;
 
-    @Transactional
+    @Transactional("transactionManager")
     public void save(URLInfo urlInfo) {
         session.save(urlInfo);
     }
