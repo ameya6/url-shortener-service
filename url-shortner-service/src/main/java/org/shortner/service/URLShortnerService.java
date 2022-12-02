@@ -157,11 +157,6 @@ public class URLShortnerService {
         return output.toString();
     }
 
-    public String redirect(String shortCode) {
-        String originalUrl = shortnerCacheDao.get(URLInfo.SHORT_CODE + shortCode);
-        return !Strings.isEmpty(originalUrl) ? originalUrl : shortnerDBDao.getByCode(shortCode).getLongURL();
-    }
-
     private URLInfoResponse urlInfoResponse(URLInfo urlInfo) {
         return URLInfoResponse
                 .builder()

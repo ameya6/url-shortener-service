@@ -27,16 +27,4 @@ public class URLShortnerController {
             return ResponseEntity.ok(shortnerService.urlInfoErrorResponse("Failed to generate short url"));
         }
     }
-
-    @GetMapping(value = "/{shortCode}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public RedirectView shortURL(@PathVariable String shortCode) {
-        RedirectView redirectView = new RedirectView();
-        try {
-            redirectView.setUrl(shortnerService.redirect(shortCode));
-            return redirectView;
-        } catch (Exception e) {
-            log.info("Exception: " + e.getMessage());
-            return redirectView;
-        }
-    }
 }
