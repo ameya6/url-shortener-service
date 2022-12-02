@@ -21,7 +21,7 @@ public class URLShortnerController {
     @PostMapping(value = "/", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<URLInfoResponse> shortURL(@RequestBody URLInfoRequest urlInfoRequest) {
         try {
-            return ResponseEntity.ok(shortnerService.shortner(urlInfoRequest));
+            return ResponseEntity.ok(shortnerService.urlShortner(urlInfoRequest));
         } catch (Exception e) {
             log.info("Exception: " + e.getMessage());
             return ResponseEntity.ok(shortnerService.urlInfoErrorResponse("Failed to generate short url"));

@@ -3,8 +3,9 @@ package org.shortner.service;
 import com.google.gson.Gson;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.logging.log4j.util.Strings;
 import org.data.model.entity.URLInfo;
+import org.data.model.event.EventType;
+import org.data.model.event.URLEvent;
 import org.data.model.request.URLInfoRequest;
 import org.data.model.response.DUIDResponse;
 import org.data.model.response.URLInfoResponse;
@@ -44,6 +45,9 @@ public class URLShortnerService {
     @Autowired
     private URLShortnerDBDao shortnerDBDao;
 
+    @Autowired
+    private URLEventService eventService;
+
     private static final Long EXPIRY_SECONDS_IN_WEEK = 86400 * 90l;
 
     private final String map = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -58,21 +62,25 @@ public class URLShortnerService {
      * 5. Stores the object in persistent database.
      *
     **/
-    public URLInfoResponse shortner(URLInfoRequest urlInfoRequest) {
+
+    public URLInfoResponse urlShortner(URLInfoRequest urlInfoRequest) {
+        URLEvent event = URLEvent.create(EventType.URL_CREATE);
+        URLInfo urlInfo = null;
         try {
             if(aliasExists(urlInfoRequest.getAlias())) {
                 return urlInfoErrorResponse("Alias " + urlInfoRequest.getAlias() + " already exists");
             }
-            URLInfo urlInfo = createShortURL(urlInfoRequest);
+            urlInfo = createShortURL(urlInfoRequest);
             URLInfoResponse response = urlInfoResponse(urlInfo);
             log.debug("url info " + urlInfo + "\nurl response " + response);
             save(urlInfo);
             return response;
         } catch (Exception e) {
             log.error("Exception: " + e.getMessage(), e);
+            event.setException(e.getMessage());
             return URLInfoResponse.builder().message("Failed to create short URL").build();
         } finally {
-            // log events
+            eventService.save(urlInfo, event);
         }
     }
 
@@ -85,10 +93,10 @@ public class URLShortnerService {
     }
 
     public void save(URLInfo urlInfo) {
+        shortnerDBDao.save(urlInfo);
+        shortnerCacheDao.save(URLInfo.KEY + urlInfo.getUuid(), urlInfo, true);
         shortnerCacheDao.set(URLInfo.URL_HASH + urlInfo.getUrlHash(), urlInfo.getUrlHash(), EXPIRY_SECONDS_IN_WEEK);
         shortnerCacheDao.set(URLInfo.SHORT_CODE + urlInfo.getShortCode(), urlInfo.getLongURL(), EXPIRY_SECONDS_IN_WEEK);
-        shortnerCacheDao.save(URLInfo.KEY + urlInfo.getUuid(), urlInfo, true);
-        shortnerDBDao.save(urlInfo);
     }
 
     private String hash(String originalString) {
