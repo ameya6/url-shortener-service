@@ -11,6 +11,7 @@
     <modules>
         <module>url-shortner-service</module>
         <module>data-access</module>
+        <module>clean-up-service</module>
     </modules>
 
     <properties>
