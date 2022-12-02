@@ -14,6 +14,7 @@ public class URLInfoRequest {
     private Long userId;
     private String userUUID;
     private LocalDateTime expireAt;
+    private String alias;
 
     public URLInfoRequest() {}
 

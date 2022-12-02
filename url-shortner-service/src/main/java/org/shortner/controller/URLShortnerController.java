@@ -1,8 +1,6 @@
 package org.shortner.controller;
 
-
 import lombok.extern.log4j.Log4j2;
-import org.data.model.entity.URLInfo;
 import org.data.model.request.URLInfoRequest;
 import org.data.model.response.URLInfoResponse;
 import org.shortner.service.URLShortnerService;
@@ -10,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.view.RedirectView;
 
 @RestController
 @RequestMapping("/shortner")
@@ -25,7 +24,19 @@ public class URLShortnerController {
             return ResponseEntity.ok(shortnerService.shortner(urlInfoRequest));
         } catch (Exception e) {
             log.info("Exception: " + e.getMessage());
-            return ResponseEntity.ok(URLInfoResponse.builder().message("Failed to create short URL").build());
+            return ResponseEntity.ok(shortnerService.urlInfoErrorResponse("Failed to generate short url"));
+        }
+    }
+
+    @GetMapping(value = "/{shortCode}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public RedirectView shortURL(@PathVariable String shortCode) {
+        RedirectView redirectView = new RedirectView();
+        try {
+            redirectView.setUrl(shortnerService.redirect(shortCode));
+            return redirectView;
+        } catch (Exception e) {
+            log.info("Exception: " + e.getMessage());
+            return redirectView;
         }
     }
 }

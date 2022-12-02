@@ -3,17 +3,17 @@ package org.shortner.service;
 import com.google.gson.Gson;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.logging.log4j.util.Strings;
 import org.data.model.entity.URLInfo;
 import org.data.model.request.URLInfoRequest;
 import org.data.model.response.DUIDResponse;
 import org.data.model.response.URLInfoResponse;
+import org.shortner.dao.URLShortnerCacheDao;
+import org.shortner.dao.URLShortnerDBDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
-import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -21,38 +21,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-
-/*
-*
-* id
-uuid
-longUrl
-shortCode
-distributedUID
-createdAt
-hashCode
-hashcodetype
-
-
-convert long url to hashvalue
-check if the hash exists
-	- check in redis set
-	if exists get the short url from the database
-	else create a new short url
-	store in db, redis and return the short url
-
-
-store in url hach in redis set
-
-get long url
-convert it to hash
-check in redis if hash exists
-convert to short url
-store in db, redis and return the short url
-
-
-*
-* */
 
 @Service
 @Log4j2
@@ -70,22 +38,57 @@ public class URLShortnerService {
     @Autowired
     private Gson gson;
 
+    @Autowired
+    private URLShortnerCacheDao shortnerCacheDao;
+
+    @Autowired
+    private URLShortnerDBDao shortnerDBDao;
+
+    private static final Long EXPIRY_SECONDS_IN_WEEK = 86400 * 90l;
+
     private final String map = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
+    /**
+     *
+     * Below function is responsible for handling the url shortner activities
+     * 1. Creates the short url.
+     * 2. Stores the object temporarily in cache.
+     * 3. Stores the short code in cache to verify if code already exists.
+     * 4. Stores the url hash in cache to verify the url already exists.
+     * 5. Stores the object in persistent database.
+     *
+    **/
     public URLInfoResponse shortner(URLInfoRequest urlInfoRequest) {
-        URLInfoResponse response = null;
         try {
+            if(aliasExists(urlInfoRequest.getAlias())) {
+                return urlInfoErrorResponse("Alias " + urlInfoRequest.getAlias() + " already exists");
+            }
             URLInfo urlInfo = createShortURL(urlInfoRequest);
-            response = urlInfoResponse(urlInfo);
-            log.info("url info " + urlInfo);
-            log.info("url info " + response);
+            URLInfoResponse response = urlInfoResponse(urlInfo);
+            log.debug("url info " + urlInfo + "\nurl response " + response);
+            save(urlInfo);
             return response;
         } catch (Exception e) {
             log.error("Exception: " + e.getMessage(), e);
-            response = URLInfoResponse.builder().message("Failed to create short URL").build();
+            return URLInfoResponse.builder().message("Failed to create short URL").build();
         } finally {
-            return response;
+            // log events
         }
+    }
+
+    private boolean aliasExists(String alias) {
+        return alias != null && getAlias(alias) != null;
+    }
+
+    private String getAlias(String alias) {
+        return shortnerCacheDao.get(URLInfo.SHORT_CODE + alias);
+    }
+
+    public void save(URLInfo urlInfo) {
+        shortnerCacheDao.set(URLInfo.URL_HASH + urlInfo.getUrlHash(), urlInfo.getUrlHash(), EXPIRY_SECONDS_IN_WEEK);
+        shortnerCacheDao.set(URLInfo.SHORT_CODE + urlInfo.getShortCode(), urlInfo.getLongURL(), EXPIRY_SECONDS_IN_WEEK);
+        shortnerCacheDao.save(URLInfo.KEY + urlInfo.getUuid(), urlInfo, true);
+        shortnerDBDao.save(urlInfo);
     }
 
     private String hash(String originalString) {
@@ -93,10 +96,14 @@ public class URLShortnerService {
     }
 
     private URLInfo createShortURL(URLInfoRequest urlInfoRequest) throws Exception {
+        String urlHash = hash(urlInfoRequest.getUrl());
+        if(hashExists(urlHash)){
+            return shortnerDBDao.getByHash(urlHash);
+        }
+
         Long uid = distributedUID();
         String shortCode = base62(uid);
-        LocalDateTime expireAt = urlInfoRequest.getExpireAt() == null ? LocalDateTime.now().plusYears(10) : urlInfoRequest.getExpireAt();
-        String urlHash = hash(urlInfoRequest.getUrl());
+        LocalDateTime expireAt = urlInfoRequest.getExpireAt() == null ? LocalDateTime.now().plusDays(90) : urlInfoRequest.getExpireAt();
 
         return URLInfo.builder()
                 .longURL(urlInfoRequest.getUrl())
@@ -108,6 +115,10 @@ public class URLShortnerService {
                 .shortCode(shortCode)
                 .domain(domainURL)
                 .build();
+    }
+
+    private boolean hashExists(String urlHash) {
+        return shortnerCacheDao.get(URLInfo.URL_HASH + urlHash) != null;
     }
 
     public Long distributedUID() throws Exception {
@@ -146,6 +157,11 @@ public class URLShortnerService {
         return output.toString();
     }
 
+    public String redirect(String shortCode) {
+        String originalUrl = shortnerCacheDao.get(URLInfo.SHORT_CODE + shortCode);
+        return !Strings.isEmpty(originalUrl) ? originalUrl : shortnerDBDao.getByCode(shortCode).getLongURL();
+    }
+
     private URLInfoResponse urlInfoResponse(URLInfo urlInfo) {
         return URLInfoResponse
                 .builder()
@@ -155,4 +171,10 @@ public class URLShortnerService {
                 .build();
     }
 
+    public URLInfoResponse urlInfoErrorResponse(String message) {
+        return URLInfoResponse
+                .builder()
+                .message(message)
+                .build();
+    }
 }
