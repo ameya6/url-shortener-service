@@ -2,6 +2,7 @@ package org.data.model.response;
 
 import lombok.*;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @AllArgsConstructor
@@ -9,7 +10,7 @@ import java.time.LocalDateTime;
 @Setter
 @Getter
 @ToString
-public class URLInfoResponse {
+public class URLInfoResponse implements Serializable {
     private String shortUrl;
     private String url;
     private Long userId;
